@@ -149,6 +149,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ingredients li { display: grid; grid-template-columns: 190px 1fr; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); font-size: 16px; }
 .ingredients strong { font-weight: 600; color: var(--ink); }
 .ingredients span { color: var(--ink-soft); }
+.recommend { margin-top: 24px; padding: 20px 22px; background: #FCF9F3; border: 1px solid var(--gold-light); border-radius: 14px; }
+.recommend__title { font-family: var(--serif); font-size: 18px; color: var(--gold-deep); margin-bottom: 8px; }
+.recommend li { position: relative; padding-left: 18px; font-size: 16px; color: var(--ink-soft); line-height: 1.9; }
+.recommend li::before { content: ""; position: absolute; left: 2px; top: .8em; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+.recommend b { color: var(--ink); font-weight: 600; }
 .howto { margin-top: 22px; }
 .howto summary { cursor: pointer; font-weight: 600; font-size: 17px; list-style: none; display: inline-flex; align-items: center; gap: 8px; color: var(--gold-deep); }
 .howto summary::-webkit-details-marker { display: none; }
