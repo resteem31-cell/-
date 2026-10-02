@@ -79,10 +79,10 @@
   ];
 
   var CONCERNS = {
-    wrinkle: { label: '주름·탄력 저하', product: 'serum' },
-    dry:     { label: '건조함·속당김', product: 'ampoule' },
-    dull:    { label: '칙칙함·윤곽', product: 'cream' },
-    trouble: { label: '모공·트러블·각질', product: 'foampack' }
+    wrinkle: { label: '주름·탄력 저하', product: 'serum', checks: ['주름·탄력 저하'] },
+    dry:     { label: '건조함·속당김', product: 'ampoule', checks: ['건조함·속당김'] },
+    dull:    { label: '칙칙함·윤곽', product: 'cream', checks: ['칙칙한 피부톤', '처진 윤곽·붓기'] },
+    trouble: { label: '모공·트러블·각질', product: 'foampack', checks: ['모공·피지', '트러블·민감', '각질·거친 결'] }
   };
 
   var TYPES = {
@@ -195,6 +195,11 @@
       recommended: PRODUCTS[main].kr + ', ' + PRODUCTS[second].kr,
       answers: answerText
     });
+    // Pre-check the matching concerns on the form (the visitor can still change them)
+    CONCERNS[concern].checks.forEach(function (v) {
+      var box = document.querySelector('input[name="concerns"][value="' + v + '"]');
+      if (box) box.checked = true;
+    });
 
     show('result');
     $('#quiz').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -279,6 +284,8 @@
       region: form.elements.region.value,
       phone: form.elements.phone.value,
       message: form.elements.message.value.trim(),
+      concerns: Array.prototype.filter.call(form.querySelectorAll('input[name="concerns"]'), function (c) { return c.checked; })
+        .map(function (c) { return c.value; }).join(', '),
       skinType: skinResult.skinType,
       concern: skinResult.concern,
       recommended: skinResult.recommended,

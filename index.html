@@ -12,8 +12,7 @@
   <link rel="icon" href="assets/img/monogram.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Noto+Serif+KR:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600;700&family=Noto+Serif+KR:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -294,6 +293,20 @@
         <p class="field__err">휴대전화 번호를 정확히 입력해 주세요.</p>
       </div>
 
+      <fieldset class="field concerns">
+        <legend>피부 고민 <span class="optional">(여러 개 선택 가능)</span></legend>
+        <div class="chips">
+          <label class="chip"><input type="checkbox" name="concerns" value="주름·탄력 저하"><span>주름·탄력 저하</span></label>
+          <label class="chip"><input type="checkbox" name="concerns" value="건조함·속당김"><span>건조함·속당김</span></label>
+          <label class="chip"><input type="checkbox" name="concerns" value="칙칙한 피부톤"><span>칙칙한 피부톤</span></label>
+          <label class="chip"><input type="checkbox" name="concerns" value="기미·잡티"><span>기미·잡티</span></label>
+          <label class="chip"><input type="checkbox" name="concerns" value="처진 윤곽·붓기"><span>처진 윤곽·붓기</span></label>
+          <label class="chip"><input type="checkbox" name="concerns" value="모공·피지"><span>모공·피지</span></label>
+          <label class="chip"><input type="checkbox" name="concerns" value="트러블·민감"><span>트러블·민감</span></label>
+          <label class="chip"><input type="checkbox" name="concerns" value="각질·거친 결"><span>각질·거친 결</span></label>
+        </div>
+      </fieldset>
+
       <div class="field">
         <label for="f-message">남기고 싶은 말 <span class="optional">(선택)</span></label>
         <textarea id="f-message" name="message" rows="4" maxlength="1000" placeholder="피부 고민이나 궁금한 점, 통화 가능한 시간대를 남겨 주세요."></textarea>
@@ -312,7 +325,7 @@
         <details class="consent__detail">
           <summary>내용 보기</summary>
           <dl>
-            <dt>수집 항목</dt><dd>이름, 나이, 지역, 휴대전화 번호, 피부타입 테스트 결과, 남기신 말</dd>
+            <dt>수집 항목</dt><dd>이름, 나이, 지역, 휴대전화 번호, 피부 고민, 피부타입 테스트 결과, 남기신 말</dd>
             <dt>수집 목적</dt><dd>피부 상담 진행 및 맞춤 제품 안내</dd>
             <dt>보유 기간</dt><dd>상담 완료 후 1년 또는 동의 철회 시까지 보관 후 지체 없이 파기</dd>
           </dl>
@@ -343,10 +356,8 @@
 <footer class="footer">
   <div class="container">
     <img src="assets/img/logo.png" alt="ANADO Dermatological Lab" class="footer__logo" width="110" height="91">
-    <!-- 아래 [ ] 안의 정보를 실제 사업자 정보로 바꿔 주세요 -->
     <p class="footer__info">
-      상호 [상호명] · 대표 [대표자명] · 사업자등록번호 [000-00-00000]<br>
-      주소 [사업장 주소] · 고객센터 [000-0000-0000]
+      상호 조이널 · 대표 박경화 · 사업자등록번호 249-87-02526
     </p>
     <p class="footer__copy">© ANADO Dermatological Lab. All rights reserved.</p>
   </div>
