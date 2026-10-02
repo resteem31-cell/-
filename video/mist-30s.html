@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MONO LAB 앰플 미스트 성분 영상</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=block" rel="stylesheet">
+<style>
+  html, body { margin: 0; background: #E9F1F1; height: 100%; }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas { height: 100vh; width: auto; max-width: 100vw; display: block; }
+  body.render canvas { height: auto; width: 1080px; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script>
+/*
+  MONO LAB 바이탈 리부트 앰플 미스트 · 30초 세로 영상 (1080x1920, 30fps)
+  - 브라우저에서 열면 반복 재생, ?t=12 를 붙이면 그 시점에서 정지
+  - node video/render.js --page mist-30s.html 로 MP4 생성
+  - 화면 문구는 아래 COPY 만 고치면 된다. [글자, 강조여부] 배열에서 true 는 민트색 강조
+*/
+const COPY = {
+  brand: 'MONO LAB',
+  heroTitle: ['바이탈 리부트', '앰플 미스트'],
+  heroSub: '진피까지 설계한 리프팅 미스트',
+
+  lift1: [[['뿌리는 순간', false]], [['즉각 리프팅', true]]],
+  lift1Sub: '늘어진 피부를 바로 탄탄하게',
+  beforeAfter: ['늘어진 피부', '탄탄한 피부'],
+  lift2: [[['겉은 ', false], ['즉각', true], [',', false]], [['속은 ', false], ['진피까지', true]]],
+  lift2Rows: [['즉각', '미스트 막이 피부 표면을 당겨 올림'], ['지속', '성장인자·펩타이드·아미노산이 진피를 채움']],
+
+  qTop: '성장인자 + 펩타이드 + 아미노산',
+  q: [[['왜 ', false], ['3가지를', true]], [['함께 써야 할까요?', false]]],
+
+  steps: [
+    { en: 'STEP 1 · SIGNAL',   title: '3종 성장인자',     line: [['재생 스위치를 켜는 ', false], ['신호', true]],     sub: 'EGF · aFGF · IGF-1',           card: ['SIGNAL', '신호', '= 공사 시작 지시'] },
+    { en: 'STEP 2 · ACTIVATE', title: '4종 멀티 펩타이드', line: [['탄력 생성을 가동하는 ', false], ['활성', true]],   sub: '섬유아세포를 깨워 콜라겐 생성 가동', card: ['ACTIVATE', '활성', '= 일꾼 투입'] },
+    { en: 'STEP 3 · BUILD',    title: '15종 아미노산',    line: [['콜라겐을 짓는 ', false], ['재료', true]],          sub: '프롤린 · 글리신 · 알지닌 · 타우린',  card: ['BUILD', '재료', '= 벽돌 공급'] },
+  ],
+  sum: [[['세 가지가 ', false], ['함께', true], ['일 때', false]], [['진피부터 차오르는 탄력', false]]],
+  sumSub: '신호만 있으면 재료가 없고, 재료만 있으면 시작되지 않습니다',
+
+  forTitle: [['이런 분께 ', false], ['추천합니다', true]],
+  targets: [
+    ['피부가 늘어진 분', '처진 윤곽을 바로 끌어올리고 싶을 때'],
+    ['탄력이 필요한 분', '진피부터 탄탄하게 채우는 데일리 케어'],
+    ['리프팅 시술과 동시 사용', '시술로 깨운 진피에 신호·재료를 함께 공급'],
+    ['시술 후 유지 관리', '리프팅 효과가 오래 가도록 매일 칙칙'],
+  ],
+
+  endTitle: '바이탈 리부트 앰플 미스트',
+  endLine: [['뿌리는 순간, ', false], ['즉각 리프팅', true]],
+  endFormula: '3종 성장인자 · 4종 펩타이드 · 15종 아미노산',
+  endFlow: 'SIGNAL  →  ACTIVATE  →  BUILD',
+};
+
+const W = 1080, H = 1920, DURATION = 30;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+// ---------- timeline (초) ----------
+const T = { B1: 3.2, B2: 6.2, Q: 8.2, S1: 9.8, S2: 13.2, S3: 16.6, SUM: 20.0, D: 23.0, E: 27.6 };
+const STEP_T = [T.S1, T.S2, T.S3];
+
+// ---------- colors ----------
+const INK = '#0F2D37', INK_SOFT = '#4C626A', TEAL = '#14A08D', TEAL_DEEP = '#0B7D72', MINT = '#7FD8C8';
+const C_GF = '#13B3A0', C_PEP = '#4C7FEA', C_AMI = '#E9A93A';
+const STEP_COL = [C_GF, C_PEP, C_AMI];
+
+// ---------- helpers ----------
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const ease = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const easeOut = x => 1 - Math.pow(1 - x, 3);
+const easeIn = x => x * x * x;
+const lerp = (a, b, k) => a + (b - a) * k;
+const sm = (t, a, b) => ease(seg(t, a, b));
+const win = (t, a, b, fi = 0.3, fo = 0.25) => Math.min(sm(t, a, a + fi), 1 - sm(t, b - fo, b));
+function rng(seed) {
+  return function () {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let r = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    r = r + Math.imul(r ^ r >>> 7, 61 | r) ^ r;
+    return ((r ^ r >>> 14) >>> 0) / 4294967296;
+  };
+}
+const R = rng(30300);
+const rr = (a, b) => a + (b - a) * R();
+function rgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+}
+function glow(x, y, r, col, a) {
+  if (a <= 0.003) return;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, rgba(col, a)); g.addColorStop(1, rgba(col, 0));
+  ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+}
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function card(x, y, w, h, r, a, fill = '#FFFFFF', shadow = true) {
+  ctx.save();
+  ctx.globalAlpha = a;
+  if (shadow) { ctx.shadowColor = 'rgba(15,45,55,0.14)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 10; }
+  roundRect(x, y, w, h, r); ctx.fillStyle = fill; ctx.fill();
+  ctx.restore();
+}
+function text(s, x, y, font, color, a = 1, align = 'center', spacing = 0) {
+  if (a <= 0) return;
+  ctx.save();
+  ctx.font = font; ctx.fillStyle = color; ctx.globalAlpha = a; ctx.textAlign = align;
+  ctx.letterSpacing = spacing + 'px';
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+// [[글자, 강조]] 한 줄을 가운데 정렬로 그린다
+function rich(parts, cx, y, size, a, weight = 900, base = INK, hi = TEAL) {
+  if (a <= 0) return;
+  ctx.save();
+  ctx.font = `${weight} ${size}px "Noto Sans KR"`;
+  ctx.globalAlpha = a; ctx.textAlign = 'left';
+  const total = parts.reduce((s, [p]) => s + ctx.measureText(p).width, 0);
+  let x = cx - total / 2;
+  for (const [p, h] of parts) {
+    const w = ctx.measureText(p).width;
+    if (h) { // 형광펜 밑줄
+      ctx.fillStyle = rgba(MINT, 0.38);
+      ctx.fillRect(x - 4, y - size * 0.28, w + 8, size * 0.3);
+    }
+    ctx.fillStyle = h ? hi : base;
+    ctx.fillText(p, x, y);
+    x += w;
+  }
+  ctx.restore();
+}
+// 헤드라인 블록: 등장 시 살짝 떠오름
+function headline(lines, a, t, t0, y, size) {
+  if (a <= 0) return;
+  const rise = (1 - sm(t, t0, t0 + 0.45)) * 30;
+  lines.forEach((l, i) => rich(l, W / 2, y + i * size * 1.22 + rise, size, a));
+}
+
+// ---------- product photo (가장자리를 부드럽게 지운 버전) ----------
+const photo = new Image();
+photo.src = 'assets/monolab-mist.jpg';
+let product = null;
+function prepProduct() {
+  const c = document.createElement('canvas'); c.width = c.height = 1000;
+  const x = c.getContext('2d');
+  x.drawImage(photo, 0, 0, 1000, 1000);
+  x.globalCompositeOperation = 'destination-in';
+  x.save(); x.translate(490, 520); x.scale(0.62, 1);
+  const g = x.createRadialGradient(0, 0, 0, 0, 0, 520);
+  g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.72, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  x.fillStyle = g; x.fillRect(-900, -600, 1800, 1200);
+  x.restore();
+  product = c;
+}
+// 사진 속 노즐(캡 윗면) 위치
+const NOZ = { x: 490, y: 102 };
+function productPose(t) {
+  const hero = { x: 540, y: 1040, s: 0.92 };
+  const side = { x: 912, y: 588, s: 0.34 };
+  const k = sm(t, 2.3, 3.2);
+  let p = { x: lerp(hero.x, side.x, k), y: lerp(hero.y, side.y, k), s: lerp(hero.s, side.s, k), a: 1 - sm(t, 7.7, 8.3) };
+  if (t >= T.D) p = { x: 540, y: 1690, s: 0.36, a: sm(t, T.D + 0.3, T.D + 0.8) * (1 - sm(t, T.E - 0.2, T.E + 0.1)) };
+  if (t >= T.E - 0.2) {
+    const k2 = easeOut(seg(t, T.E - 0.2, T.E + 0.6));
+    p = { x: 540, y: lerp(1120, 1060, k2), s: lerp(0.8, 0.86, k2), a: sm(t, T.E - 0.1, T.E + 0.4) };
+  }
+  return p;
+}
+function nozzle(p) { return { x: p.x + (NOZ.x - 500) * p.s, y: p.y + (NOZ.y - 500) * p.s }; }
+function drawProduct(t) {
+  if (!product) return;
+  const p = productPose(t);
+  if (p.a <= 0) return;
+  const size = 1000 * p.s;
+  ctx.save();
+  ctx.globalAlpha = p.a;
+  // 바닥 그림자 / 후광
+  glow(p.x, p.y + size * 0.05, size * 0.55, '#FFFFFF', 0.7);
+  ctx.drawImage(product, p.x - size / 2, p.y - size / 2, size, size);
+  // 병 위를 지나가는 빛 (히어로·엔딩)
+  const sweep = Math.max(win(t, 0.4, 1.6, 0.2, 0.2), win(t, T.E + 0.5, T.E + 1.8, 0.2, 0.2));
+  if (sweep > 0) {
+    const k = t < 5 ? seg(t, 0.4, 1.6) : seg(t, T.E + 0.5, T.E + 1.8);
+    const sx = p.x + lerp(-0.18, 0.18, k) * size;
+    ctx.globalCompositeOperation = 'screen';
+    const g = ctx.createLinearGradient(sx - 50 * p.s * 2, 0, sx + 50 * p.s * 2, 0);
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, `rgba(255,255,255,${0.55 * sweep})`); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(p.x - size * 0.12, p.y - size * 0.41, size * 0.24, size * 0.8);
+  }
+  ctx.restore();
+}
+
+// ---------- skin geometry ----------
+const SURF = 800;
+const sag = t => 1 - sm(t, 4.3, 5.9);
+const build = t => sm(t, T.S3, T.S3 + 2.6);
+function surfaceY(x, t) {
+  const g = (c, w, d) => d * Math.exp(-((x - c) * (x - c)) / (2 * w * w));
+  const s = sag(t);
+  return SURF + s * (g(300, 40, 34) + g(730, 34, 30) + 22 * Math.sin(x / W * Math.PI))
+    + (2 + 3 * s) * Math.sin(x * 0.045) - (1 - s) * 10 - build(t) * 6;
+}
+const SC = 18;
+const EPI = 122;
+function dejY(x, t) { return surfaceY(x, t) + EPI + (5 + 9 * build(t)) * Math.sin(x * 2 * Math.PI / 96 + 0.6); }
+const DERMIS_SHIFT = t => -(1 - sag(t)) * 6 - build(t) * 10;
+
+// ---------- scene data ----------
+const fibers = [];
+for (let i = 0; i < 18; i++) fibers.push({
+  y0: lerp(1010, 1420, i / 17) + rr(-12, 12), slope: rr(-0.05, 0.05), freq: rr(0.006, 0.011), ph: rr(0, 6.28),
+  amp: rr(16, 30), gap: rr(0, 1), w: rr(2.6, 4), isNew: false,
+});
+for (let i = 0; i < 14; i++) fibers.push({
+  y0: rr(1000, 1430), slope: rr(-0.06, 0.06), freq: rr(0.006, 0.011), ph: rr(0, 6.28),
+  amp: rr(12, 22), gap: rr(0, 1), w: rr(2.6, 4), isNew: true, delay: rr(0.2, 1.4),
+});
+const fibroblasts = [
+  [120, 1090], [330, 1180], [560, 1080], [800, 1170], [990, 1080], [210, 1340], [470, 1360], [700, 1320], [930, 1380],
+].map(([x, y], i) => ({ x, y, rot: rr(-0.45, 0.45), len: rr(38, 48), ph: rr(0, 6.28), dock: T.S2 + 0.25 + i * 0.13 + 1.0 }));
+const emitters = [{ x: 190, label: 'EGF' }, { x: 540, label: 'aFGF' }, { x: 890, label: 'IGF-1' }];
+const chains = fibroblasts.map((f, i) => ({ sx: rr(80, 1000), f, t0: f.dock - 1.0 }));
+const aminos = [];
+for (let i = 0; i < 90; i++) aminos.push({ sx: rr(30, 1050), fi: (i * 7) % fibers.length, tx: rr(40, 1040), ts: T.S3 + rr(0.05, 2.2), dur: rr(0.8, 1.3), s: rr(5, 8) });
+const aminoLabels = [['프롤린', 170, 1035], ['글리신', 420, 1255], ['알지닌', 690, 1060], ['타우린', 905, 1265]];
+const mist = [];
+for (let i = 0; i < 260; i++) {
+  const hero = i < 90;
+  mist.push({ hero, ts: hero ? rr(1.1, 2.0) : rr(3.25, 4.6), dur: rr(0.55, 0.95), ang: rr(-1, 1), spread: R(), s: rr(4, 13), tx: rr(90, 780) });
+}
+const soak = [];
+for (let i = 0; i < 140; i++) soak.push({ x: rr(80, 820), ts: rr(3.7, 7.6), dur: rr(1.2, 2.0), depth: rr(60, 620), ph: rr(0, 6.28), s: rr(3, 5.5) });
+const endMist = Array.from({ length: 70 }, () => ({ ts: rr(T.E + 0.35, T.E + 1.1), dur: rr(0.6, 1.0), ang: rr(-1, 1), spread: R(), s: rr(4, 12) }));
+
+// ---------- dermis ----------
+function fiberY(f, x, t) {
+  const tight = build(t) * 0.85;
+  const amp = f.amp * (1 - tight);
+  return f.y0 + DERMIS_SHIFT(t) + f.slope * (x - 540) + amp * Math.sin(x * f.freq + f.ph) + (1 - tight) * 14 * Math.sin(x / W * Math.PI);
+}
+function drawFibers(t) {
+  const k = build(t);
+  for (const f of fibers) {
+    let reveal = 1;
+    if (f.isNew) { reveal = easeOut(seg(t, T.S3 + f.delay, T.S3 + f.delay + 1.0)); if (reveal <= 0) continue; }
+    const xEnd = -40 + reveal * (W + 80);
+    for (let b = -1; b <= 1; b++) {
+      ctx.beginPath();
+      for (let x = -40; x <= xEnd; x += 16) { const y = fiberY(f, x, t) + b * 6; x === -40 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+      const broken = (1 - k) * (f.isNew ? 0 : 1);
+      ctx.setLineDash(broken > 0.02 ? [lerp(500, 60, broken), lerp(0, 36, broken)] : []);
+      ctx.lineDashOffset = f.gap * 90;
+      ctx.lineWidth = f.w * lerp(0.85, 1.1, k);
+      ctx.strokeStyle = `rgba(255,${lerp(226, 246, k)|0},${lerp(218, 238, k)|0},${lerp(0.42, 0.85, k)})`;
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  // 재료가 채워지는 빛 흐름
+  const flow = win(t, T.S3 + 0.8, T.D, 0.5, 0.4);
+  if (flow > 0) for (const f of fibers) {
+    const px = ((t * 560 + f.ph * 170) % (W + 400)) - 200;
+    glow(px, fiberY(f, px, t), 55, '#FFF1D6', 0.55 * flow);
+  }
+}
+function signalOn(t) { return sm(t, T.S1 + 0.9, T.S1 + 1.8); }
+function drawFibroblasts(t) {
+  const sig = signalOn(t);
+  for (const f of fibroblasts) {
+    const y = f.y + DERMIS_SHIFT(t);
+    const act = sm(t, f.dock, f.dock + 0.3);
+    // 활성 단계: 섬유아세포에서 새 섬유가 뻗어 나옴
+    const grow = easeOut(seg(t, f.dock + 0.1, f.dock + 1.4));
+    if (grow > 0) for (const dir of [-1, 1]) {
+      ctx.beginPath();
+      const len = 40 + grow * 150;
+      for (let s = 0; s <= 1.0001; s += 0.1) {
+        const xx = f.x + dir * Math.cos(f.rot) * (f.len * 0.8 + s * len);
+        const yy = y + dir * Math.sin(f.rot) * (f.len * 0.8 + s * len) + Math.sin(s * 6 + f.ph) * 6 * (1 - build(t));
+        s === 0 ? ctx.moveTo(xx, yy) : ctx.lineTo(xx, yy);
+      }
+      ctx.strokeStyle = `rgba(255,250,244,${0.9})`; ctx.lineWidth = 3.5; ctx.stroke();
+    }
+    if (sig > 0) glow(f.x, y, 85, C_GF, 0.35 * sig * (1 - 0.5 * act));
+    if (act > 0) {
+      const p = (t * 1.5 + f.ph) % 1;
+      ctx.beginPath(); ctx.arc(f.x, y, 26 + p * 60, 0, Math.PI * 2);
+      ctx.strokeStyle = rgba(C_PEP, 0.6 * (1 - p) * act * (1 - sm(t, T.SUM, T.D))); ctx.lineWidth = 3; ctx.stroke();
+      glow(f.x, y, 90, '#BFD2FF', 0.45 * act * (1 - sm(t, T.S3 + 0.5, T.SUM)));
+    }
+    ctx.save();
+    ctx.translate(f.x, y); ctx.rotate(f.rot);
+    ctx.beginPath();
+    ctx.moveTo(-f.len, 0); ctx.quadraticCurveTo(0, -17, f.len, 0); ctx.quadraticCurveTo(0, 17, -f.len, 0);
+    ctx.fillStyle = act > 0.5 ? '#FFE9DA' : '#F8CDB8'; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = sig > 0 ? rgba(C_GF, 0.9 * sig) : 'rgba(170,96,80,0.45)'; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, 0, 10, 7, 0, 0, Math.PI * 2);
+    ctx.fillStyle = act > 0.5 ? '#7FA0F2' : '#B9776A'; ctx.fill();
+    ctx.restore();
+  }
+}
+function drawSignals(t) {
+  const on = win(t, T.S1 + 0.1, T.S2 + 0.4, 0.3, 0.4);
+  if (on <= 0) return;
+  for (const e of emitters) {
+    const ey = lerp(surfaceY(e.x, t) + SC, dejY(e.x, t), 0.5);
+    // 신호선 → 가까운 섬유아세포
+    const near = fibroblasts.filter(f => Math.abs(f.x - e.x) < 260);
+    for (const f of near) {
+      const fy = f.y + DERMIS_SHIFT(t);
+      const reach = easeOut(seg(t, T.S1 + 0.3, T.S1 + 1.0));
+      const ex = lerp(e.x, f.x, reach), eyy = lerp(ey, fy, reach);
+      ctx.beginPath(); ctx.moveTo(e.x, ey); ctx.lineTo(ex, eyy);
+      ctx.setLineDash([8, 10]); ctx.lineDashOffset = -t * 60;
+      ctx.strokeStyle = rgba(C_GF, 0.85 * on); ctx.lineWidth = 3; ctx.stroke(); ctx.setLineDash([]);
+      for (let k = 0; k < 2; k++) {
+        const p = ((t - T.S1) * 0.9 + k * 0.5 + f.ph) % 1;
+        if (p > reach) continue;
+        glow(lerp(e.x, f.x, p), lerp(ey, fy, p), 22, '#B6FFF2', 0.95 * on);
+      }
+    }
+    for (let k = 0; k < 2; k++) {
+      const p = ((t - T.S1) * 1.3 + k * 0.5) % 1;
+      ctx.beginPath(); ctx.arc(e.x, ey, 14 + p * 90, 0, Math.PI * 2);
+      ctx.strokeStyle = rgba(C_GF, 0.75 * (1 - p) * on); ctx.lineWidth = 3.5; ctx.stroke();
+    }
+    glow(e.x, ey, 44, '#C8FFF4', on);
+    chip(e.label, e.x, ey - 52, 30, C_GF, on);
+  }
+}
+function chip(label, x, y, size, col, a, bg = 'rgba(255,255,255,0.94)') {
+  if (a <= 0) return;
+  ctx.save();
+  ctx.font = `700 ${size}px "Noto Sans KR"`;
+  const w = ctx.measureText(label).width + size * 1.1, h = size * 1.6;
+  ctx.globalAlpha = a;
+  ctx.shadowColor = 'rgba(15,45,55,0.18)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 4;
+  roundRect(x - w / 2, y - h / 2, w, h, h / 2); ctx.fillStyle = bg; ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.lineWidth = 2.5; ctx.strokeStyle = col; ctx.stroke();
+  ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(label, x, y + 1);
+  ctx.restore();
+}
+function drawPeptides(t) {
+  const fade = 1 - sm(t, T.S3 + 0.6, T.S3 + 1.4);
+  if (fade <= 0) return;
+  for (const c of chains) {
+    const p = ease(seg(t, c.t0, c.t0 + 1.0));
+    if (p <= 0) continue;
+    const fy = c.f.y + DERMIS_SHIFT(t);
+    const sy = surfaceY(c.sx, t) + SC;
+    const x = lerp(c.sx, c.f.x, p), y = lerp(sy, fy - 36, p) - Math.sin(p * Math.PI) * 50;
+    const lock = seg(t, c.t0 + 0.9, c.t0 + 1.15);
+    const beads = [];
+    for (let b = -2; b <= 2; b++) {
+      const wig = (1 - lock) * Math.sin(t * 9 + b * 1.3 + c.sx) * 9;
+      beads.push([x + b * 20, y + wig + lock * Math.abs(b) * 4]);
+    }
+    ctx.globalAlpha = fade;
+    ctx.beginPath(); beads.forEach(([bx, by], i) => i ? ctx.lineTo(bx, by) : ctx.moveTo(bx, by));
+    ctx.strokeStyle = rgba(C_PEP, 0.9); ctx.lineWidth = 3.5; ctx.stroke();
+    beads.forEach(([bx, by], i) => {
+      ctx.beginPath(); ctx.arc(bx, by, 10, 0, Math.PI * 2);
+      ctx.fillStyle = i % 2 ? '#6E97F2' : '#A9C2FA'; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = '#FFFFFF'; ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+    if (lock > 0 && lock < 1) glow(x, y, 80, '#C9D9FF', 0.9 * Math.sin(lock * Math.PI));
+  }
+  const la = win(t, T.S2 + 0.5, T.S3 + 0.4, 0.3, 0.3);
+  chip('PEPTIDE', 540, 985 + DERMIS_SHIFT(t), 30, C_PEP, la);
+}
+function drawAminos(t) {
+  for (const a of aminos) {
+    const k = (t - a.ts) / a.dur;
+    if (k <= 0 || k >= 1.3) continue;
+    const e = ease(clamp(k));
+    const f = fibers[a.fi];
+    const ty = fiberY(f, a.tx, t), sy = surfaceY(a.sx, t) + SC;
+    const x = lerp(a.sx, a.tx, e), y = lerp(sy, ty, e);
+    const al = k < 1 ? Math.min(1, k * 5) : 1 - (k - 1) / 0.3;
+    glow(x, y, a.s * 3.2, C_AMI, 0.5 * al);
+    ctx.beginPath(); ctx.arc(x, y, a.s, 0, Math.PI * 2);
+    ctx.fillStyle = rgba('#FFC85A', al); ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = rgba('#FFFFFF', al); ctx.stroke();
+    if (k >= 1) glow(x, y, 40, '#FFE6A6', 0.7 * al);
+  }
+  const la = win(t, T.S3 + 0.4, T.SUM + 0.2, 0.3, 0.3);
+  for (const [l, x, y] of aminoLabels) chip(l, x, y + DERMIS_SHIFT(t), 30, '#C9851A', la);
+}
+function drawMist(t) {
+  for (const m of mist) {
+    const k = (t - m.ts) / m.dur;
+    if (k <= 0 || k >= 1) continue;
+    const p = productPose(m.ts);
+    const n = nozzle(p);
+    let x, y;
+    if (m.hero) {
+      const ang = -Math.PI / 2 + m.ang * 1.2;
+      const d = easeOut(k) * lerp(160, 420, m.spread);
+      x = n.x + Math.cos(ang) * d * 1.3; y = n.y + Math.sin(ang) * d * 0.22 - 10;
+    } else {
+      const e = easeOut(k);
+      const tx = m.tx, ty = surfaceY(tx, t) - 6;
+      x = lerp(n.x - 20, tx, e) + Math.sin(k * 5 + m.ang * 3) * 8;
+      y = lerp(n.y, ty, e) - Math.sin(e * Math.PI) * 90 * m.spread;
+    }
+    const a = Math.sin(k * Math.PI) * 0.9;
+    const r = m.s * (0.7 + k * 1.3);
+    glow(x, y, r * 2.6, '#5FD3BF', a * 0.45);
+    ctx.beginPath(); ctx.arc(x, y, r * 0.5, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${a})`; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = `rgba(20,160,141,${a * 0.6})`; ctx.stroke();
+  }
+  for (const m of endMist) {
+    const k = (t - m.ts) / m.dur;
+    if (k <= 0 || k >= 1) continue;
+    const n = nozzle(productPose(t));
+    const ang = -Math.PI / 2 + m.ang * 1.1;
+    const d = easeOut(k) * lerp(140, 380, m.spread);
+    const x = n.x + Math.cos(ang) * d * 1.3, y = n.y + Math.sin(ang) * d * 0.5 - 10;
+    const a = Math.sin(k * Math.PI) * 0.85;
+    glow(x, y, m.s * 2.8, '#5FD3BF', a * 0.45);
+    ctx.beginPath(); ctx.arc(x, y, m.s * 0.55, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${a})`; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = `rgba(20,160,141,${a * 0.6})`; ctx.stroke();
+  }
+}
+function drawSoak(t) {
+  for (const p of soak) {
+    const k = (t - p.ts) / p.dur;
+    if (k <= 0 || k >= 1.2) continue;
+    const e = easeOut(clamp(k));
+    const sy = surfaceY(p.x, t);
+    const x = p.x + Math.sin(k * 6 + p.ph) * 12, y = sy + 6 + e * p.depth;
+    const a = k < 1 ? Math.min(1, k * 6) : 1 - (k - 1) / 0.2;
+    const yb = sy + 6 + easeOut(clamp(k - 0.14)) * p.depth;
+    const g = ctx.createLinearGradient(x, yb, x, y);
+    g.addColorStop(0, rgba('#BDF5EA', 0)); g.addColorStop(1, rgba('#BDF5EA', 0.7 * a));
+    ctx.strokeStyle = g; ctx.lineWidth = p.s; ctx.beginPath(); ctx.moveTo(x, yb); ctx.lineTo(x, y); ctx.stroke();
+    glow(x, y, p.s * 4, '#9FEBDD', 0.6 * a);
+    ctx.beginPath(); ctx.arc(x, y, p.s * 0.6, 0, Math.PI * 2); ctx.fillStyle = rgba('#FFFFFF', a); ctx.fill();
+  }
+}
+function pathSurface(t, off = 0) {
+  ctx.moveTo(-10, surfaceY(-10, t) + off);
+  for (let x = 0; x <= W + 10; x += 10) ctx.lineTo(x, surfaceY(x, t) + off);
+}
+function drawSkin(t) {
+  // 진피
+  ctx.beginPath();
+  ctx.moveTo(-10, dejY(-10, t));
+  for (let x = 0; x <= W + 10; x += 8) ctx.lineTo(x, dejY(x, t));
+  ctx.lineTo(W + 10, 1700); ctx.lineTo(-10, 1700); ctx.closePath();
+  const hp = build(t);
+  const dg = ctx.createLinearGradient(0, 900, 0, 1560);
+  dg.addColorStop(0, `rgb(${lerp(226, 238, hp)|0},${lerp(150, 160, hp)|0},${lerp(140, 146, hp)|0})`);
+  dg.addColorStop(1, `rgb(${lerp(196, 214, hp)|0},${lerp(112, 120, hp)|0},${lerp(108, 114, hp)|0})`);
+  ctx.fillStyle = dg; ctx.fill();
+  // 진피 강조 (성분 설명 구간)
+  const hl = win(t, T.Q, T.D, 0.6, 0.4) * (0.5 + 0.5 * Math.sin(t * 3));
+  if (hl > 0) {
+    ctx.save(); ctx.clip();
+    const hg = ctx.createLinearGradient(0, 900, 0, 1500);
+    hg.addColorStop(0, rgba('#FFFFFF', 0.10 * hl)); hg.addColorStop(1, rgba('#FFFFFF', 0));
+    ctx.fillStyle = hg; ctx.fillRect(0, 880, W, 700);
+    ctx.restore();
+  }
+
+  drawFibers(t);
+  drawFibroblasts(t);
+
+  // 표피
+  ctx.beginPath(); pathSurface(t);
+  for (let x = W + 10; x >= -10; x -= 8) ctx.lineTo(x, dejY(x, t));
+  ctx.closePath();
+  const eg = ctx.createLinearGradient(0, SURF, 0, SURF + 140);
+  eg.addColorStop(0, '#F8DCC8'); eg.addColorStop(1, '#EFC0A9');
+  ctx.fillStyle = eg; ctx.fill();
+  for (let r = 0; r < 3; r++) {
+    const off = r % 2 ? 26 : 0;
+    for (let x = -30 + off; x < W + 40; x += 52) {
+      const top = surfaceY(x, t) + SC + 6, bot = dejY(x, t) - 6;
+      const y = lerp(top, bot, (r + 0.5) / 3);
+      const ry = (bot - top) / 3 * 0.45 * lerp(0.6, 1, r / 2) + 4;
+      ctx.beginPath(); ctx.ellipse(x, y, 23, ry, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(252,226,210,0.95)'; ctx.fill();
+      ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(176,104,86,0.35)'; ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, y, 7, ry * 0.4, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(190,120,100,0.6)'; ctx.fill();
+    }
+  }
+  ctx.beginPath(); ctx.moveTo(-10, dejY(-10, t));
+  for (let x = 0; x <= W + 10; x += 8) ctx.lineTo(x, dejY(x, t));
+  ctx.strokeStyle = 'rgba(160,84,70,0.55)'; ctx.lineWidth = 3; ctx.stroke();
+  // 각질층
+  ctx.beginPath(); pathSurface(t);
+  for (let x = W + 10; x >= -10; x -= 10) ctx.lineTo(x, surfaceY(x, t) + SC);
+  ctx.closePath(); ctx.fillStyle = '#F1CBB2'; ctx.fill();
+
+  // 미스트 막 (즉각 리프팅)
+  const film = sm(t, 3.6, 4.4);
+  if (film > 0) {
+    ctx.save();
+    ctx.beginPath(); pathSurface(t, -3);
+    ctx.strokeStyle = rgba('#7FE3D2', 0.95 * film * (1 - 0.45 * sm(t, 8, 9)));
+    ctx.lineWidth = 9; ctx.shadowColor = 'rgba(80,220,200,0.9)'; ctx.shadowBlur = 26; ctx.stroke();
+    ctx.restore();
+  }
+
+  drawSoak(t);
+  drawSignals(t);
+  drawPeptides(t);
+  drawAminos(t);
+
+  // 리프팅 화살표
+  const la = win(t, 4.1, 6.7, 0.3, 0.5);
+  if (la > 0) for (const ax of [200, 540, 880]) {
+    const p = ((t - 4.1) * 0.9 + ax / 2000) % 1;
+    const y = surfaceY(ax, t) + 60 - easeOut(p) * 150;
+    const a = la * Math.sin(p * Math.PI);
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.strokeStyle = TEAL; ctx.lineWidth = 12; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(255,255,255,0.9)'; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.moveTo(ax, y + 90); ctx.lineTo(ax, y);
+    ctx.moveTo(ax - 32, y + 32); ctx.lineTo(ax, y); ctx.lineTo(ax + 32, y + 32); ctx.stroke();
+    ctx.restore();
+  }
+
+  // 층 이름표 (진피가 잘 보이도록 크게)
+  const lab = win(t, 2.8, T.D, 0.5, 0.3);
+  layerTag('표피', 'EPIDERMIS', W - 36, surfaceY(W - 120, t) + 70, lab, false);
+  layerTag('진피', 'DERMIS', 36, dejY(140, t) + 74, lab, true);
+}
+function layerTag(ko, en, x, y, a, left) {
+  if (a <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.font = '900 36px "Noto Sans KR"';
+  const w1 = ctx.measureText(ko).width;
+  ctx.font = '700 24px "Noto Sans KR"';
+  const w2 = ctx.measureText(en).width;
+  const w = w1 + w2 + 54, h = 58;
+  const x0 = left ? x : x - w;
+  ctx.shadowColor = 'rgba(15,45,55,0.2)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 4;
+  roundRect(x0, y - h / 2, w, h, 29); ctx.fillStyle = left ? TEAL_DEEP : 'rgba(255,255,255,0.95)'; ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.font = '900 36px "Noto Sans KR"'; ctx.fillStyle = left ? '#FFFFFF' : INK; ctx.fillText(ko, x0 + 22, y + 1);
+  ctx.font = '700 24px "Noto Sans KR"'; ctx.fillStyle = left ? '#BDF2E8' : INK_SOFT; ctx.fillText(en, x0 + 32 + w1, y + 2);
+  ctx.restore();
+}
+
+// ---------- 상단 문구 ----------
+function drawTop(t) {
+  // 히어로
+  const ha = win(t, 0.15, 2.6, 0.5, 0.35);
+  text(COPY.brand, W / 2, 190, '700 40px "Noto Sans KR"', TEAL_DEEP, ha, 'center', 14);
+  headline(COPY.heroTitle.map(s => [[s, false]]), ha, t, 0.15, 315, 96);
+  text(COPY.heroSub, W / 2, 520, '700 42px "Noto Sans KR"', INK_SOFT, win(t, 0.5, 2.6, 0.4, 0.35));
+
+  // 즉각 리프팅
+  const b1 = win(t, T.B1, T.B2, 0.35, 0.25);
+  headline(COPY.lift1, b1, t, T.B1, 210, 112);
+  text(COPY.lift1Sub, 60, 520 + (1 - sm(t, T.B1, T.B1 + 0.45)) * 30, '700 44px "Noto Sans KR"', INK_SOFT, b1 * sm(t, T.B1 + 0.2, T.B1 + 0.6), 'left');
+  const b2 = win(t, T.B2, T.Q, 0.35, 0.25);
+  headline(COPY.lift2, b2, t, T.B2, 230, 104);
+
+  // 질문
+  const qa = win(t, T.Q, T.S1, 0.35, 0.25);
+  const qr = (1 - sm(t, T.Q, T.Q + 0.45)) * 30;
+  text(COPY.qTop, W / 2, 170 + qr, '900 46px "Noto Sans KR"', TEAL_DEEP, qa);
+  headline(COPY.q, qa, t, T.Q, 320, 96);
+
+  // 단계
+  for (let i = 0; i < 3; i++) {
+    const a = win(t, STEP_T[i], STEP_T[i] + 3.4, 0.3, 0.22);
+    if (a <= 0) continue;
+    const st = COPY.steps[i];
+    const rise = (1 - sm(t, STEP_T[i], STEP_T[i] + 0.45)) * 30;
+    text(st.en, W / 2, 160 + rise, '700 36px "Noto Sans KR"', STEP_COL[i], a, 'center', 8);
+    text(st.title, W / 2, 285 + rise, '900 108px "Noto Sans KR"', INK, a);
+    rich(st.line, W / 2, 395 + rise, 60, a, 900, INK, STEP_COL[i] === C_AMI ? '#C9851A' : STEP_COL[i]);
+    text(st.sub, W / 2, 480 + rise, '700 40px "Noto Sans KR"', INK_SOFT, a);
+  }
+
+  // 정리
+  const sa = win(t, T.SUM, T.D + 0.1, 0.35, 0.3);
+  headline(COPY.sum, sa, t, T.SUM, 200, 92);
+  text(COPY.sumSub, W / 2, 470, '700 34px "Noto Sans KR"', INK_SOFT, sa * sm(t, T.SUM + 0.4, T.SUM + 0.8));
+}
+
+// ---------- 하단 패널 ----------
+function drawBottom(t) {
+  // 즉각 리프팅: 늘어진 피부 → 탄탄한 피부
+  const b1 = win(t, T.B1 + 0.6, T.B2, 0.35, 0.25);
+  if (b1 > 0) {
+    card(60, 1600, 960, 210, 40, b1);
+    const k = sm(t, 4.3, 5.9);
+    text(COPY.beforeAfter[0], 280, 1725, '900 50px "Noto Sans KR"', k > 0.5 ? '#9AA7AB' : INK, b1);
+    text(COPY.beforeAfter[1], 800, 1725, '900 50px "Noto Sans KR"', k > 0.5 ? TEAL : '#9AA7AB', b1);
+    ctx.save(); ctx.globalAlpha = b1;
+    ctx.strokeStyle = TEAL; ctx.lineWidth = 8; ctx.lineCap = 'round';
+    const ax = lerp(470, 610, k);
+    ctx.beginPath(); ctx.moveTo(470, 1708); ctx.lineTo(ax, 1708); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ax - 20, 1688); ctx.lineTo(ax, 1708); ctx.lineTo(ax - 20, 1728); ctx.stroke();
+    ctx.restore();
+  }
+  // 겉은 즉각 / 속은 진피까지
+  const b2 = win(t, T.B2 + 0.2, T.Q, 0.35, 0.25);
+  COPY.lift2Rows.forEach(([tag, desc], i) => {
+    const a = b2 * sm(t, T.B2 + 0.25 + i * 0.35, T.B2 + 0.6 + i * 0.35);
+    if (a <= 0) return;
+    const y = 1590 + i * 150;
+    card(50, y, 980, 124, 34, a);
+    ctx.save(); ctx.globalAlpha = a;
+    roundRect(78, y + 26, 140, 72, 36); ctx.fillStyle = i ? TEAL_DEEP : TEAL; ctx.fill();
+    ctx.restore();
+    text(tag, 148, y + 76, '900 40px "Noto Sans KR"', '#FFFFFF', a);
+    text(desc, 244, y + 77, '700 38px "Noto Sans KR"', INK, a, 'left');
+  });
+  // SIGNAL + ACTIVATE + BUILD
+  const fa = win(t, T.Q + 0.3, T.D + 0.1, 0.4, 0.3);
+  if (fa > 0) {
+    const xs = [190, 540, 890], cw = 300, ch = 270, cy = 1575;
+    for (let i = 0; i < 3; i++) {
+      const active = t >= STEP_T[i] && t < STEP_T[i] + 3.4;
+      const done = t >= STEP_T[i] + 3.4;
+      const all = sm(t, T.SUM, T.SUM + 0.4);
+      const on = Math.max(active ? sm(t, STEP_T[i], STEP_T[i] + 0.3) : 0, all);
+      const sc = 1 + 0.06 * (active ? ease(seg(t, STEP_T[i], STEP_T[i] + 0.35)) : 0);
+      const col = STEP_COL[i];
+      ctx.save();
+      ctx.translate(xs[i], cy + ch / 2); ctx.scale(sc, sc); ctx.translate(-xs[i], -(cy + ch / 2));
+      card(xs[i] - cw / 2, cy, cw, ch, 34, fa, on > 0.5 ? col : '#FFFFFF');
+      if (on <= 0.5) {
+        ctx.globalAlpha = fa;
+        roundRect(xs[i] - cw / 2, cy, cw, ch, 34);
+        ctx.strokeStyle = done ? col : 'rgba(15,45,55,0.12)'; ctx.lineWidth = done ? 4 : 2; ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      const [en, ko, an] = COPY.steps[i].card;
+      const fg = on > 0.5 ? '#FFFFFF' : done ? (i === 2 ? '#C9851A' : col) : '#9AA7AB';
+      text(en, xs[i], cy + 70, '700 32px "Noto Sans KR"', fg, fa, 'center', 3);
+      text(ko, xs[i], cy + 160, '900 76px "Noto Sans KR"', on > 0.5 ? '#FFFFFF' : done ? INK : '#9AA7AB', fa);
+      text(an, xs[i], cy + 225, '700 30px "Noto Sans KR"', on > 0.5 ? 'rgba(255,255,255,0.92)' : INK_SOFT, fa);
+      ctx.restore();
+    }
+    for (const px of [365, 715]) text('+', px, cy + 160, '900 64px "Noto Sans KR"', TEAL_DEEP, fa);
+  }
+}
+
+// ---------- 추천 대상 ----------
+function icon(i, x, y, col) {
+  ctx.save();
+  ctx.strokeStyle = col; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (i === 0) { // 처진 선 → 끌어올림
+    ctx.beginPath(); ctx.moveTo(x - 30, y + 22); ctx.quadraticCurveTo(x, y + 34, x + 30, y + 22); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y + 8); ctx.lineTo(x, y - 30); ctx.moveTo(x - 16, y - 14); ctx.lineTo(x, y - 30); ctx.lineTo(x + 16, y - 14); ctx.stroke();
+  } else if (i === 1) { // 위로 화살표 3개
+    for (const dx of [-24, 0, 24]) {
+      ctx.beginPath(); ctx.moveTo(x + dx, y + 28); ctx.lineTo(x + dx, y - 22);
+      ctx.moveTo(x + dx - 10, y - 12); ctx.lineTo(x + dx, y - 22); ctx.lineTo(x + dx + 10, y - 12); ctx.stroke();
+    }
+  } else if (i === 2) { // + 반짝임
+    ctx.beginPath(); ctx.moveTo(x - 8, y - 26); ctx.lineTo(x - 8, y + 26); ctx.moveTo(x - 34, y); ctx.lineTo(x + 18, y); ctx.stroke();
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(x + 26, y - 34); ctx.lineTo(x + 26, y - 14); ctx.moveTo(x + 16, y - 24); ctx.lineTo(x + 36, y - 24); ctx.stroke();
+  } else { // 방패 + 체크
+    ctx.beginPath(); ctx.moveTo(x, y - 34); ctx.lineTo(x + 28, y - 22); ctx.lineTo(x + 26, y + 6);
+    ctx.quadraticCurveTo(x + 20, y + 26, x, y + 36); ctx.quadraticCurveTo(x - 20, y + 26, x - 26, y + 6); ctx.lineTo(x - 28, y - 22); ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 12, y + 2); ctx.lineTo(x - 2, y + 12); ctx.lineTo(x + 14, y - 8); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawTargets(t) {
+  const cover = sm(t, T.D - 0.4, T.D + 0.2) * (1 - sm(t, T.E - 0.3, T.E));
+  const endBg = sm(t, T.E - 0.3, T.E);
+  const panel = Math.max(cover, endBg);
+  if (panel <= 0) return;
+  // 아래에서 올라오는 밝은 패널
+  const top = lerp(H, 0, panel);
+  const bg = ctx.createLinearGradient(0, top, 0, H);
+  bg.addColorStop(0, '#F5FAFA'); bg.addColorStop(1, '#E3EEEE');
+  ctx.fillStyle = bg; ctx.fillRect(0, top, W, H - top);
+  const a = win(t, T.D, T.E, 0.4, 0.3);
+  if (a <= 0) return;
+  const r = (1 - sm(t, T.D, T.D + 0.45)) * 30;
+  rich(COPY.forTitle, W / 2, 225 + r, 88, a);
+  COPY.targets.forEach(([title, sub], i) => {
+    const t0 = T.D + 0.35 + i * 0.75;
+    const k = easeOut(seg(t, t0, t0 + 0.45));
+    const ca = a * k;
+    if (ca <= 0) return;
+    const y = 320 + i * 260 + (1 - k) * 40;
+    card(50, y, 980, 220, 40, ca);
+    ctx.save(); ctx.globalAlpha = ca;
+    ctx.beginPath(); ctx.arc(160, y + 110, 64, 0, Math.PI * 2);
+    ctx.fillStyle = i < 2 ? rgba(TEAL, 0.12) : TEAL; ctx.fill();
+    icon(i, 160, y + 110, i < 2 ? TEAL_DEEP : '#FFFFFF');
+    ctx.restore();
+    text(title, 262, y + 100, '900 54px "Noto Sans KR"', INK, ca, 'left');
+    text(sub, 262, y + 162, '700 34px "Noto Sans KR"', INK_SOFT, ca, 'left');
+  });
+}
+
+// ---------- 엔딩 ----------
+function drawEnd(t) {
+  const a = sm(t, T.E, T.E + 0.5);
+  if (a <= 0) return;
+  const r = (1 - a) * 30;
+  text(COPY.brand, W / 2, 200 + r, '700 56px "Noto Sans KR"', TEAL_DEEP, a, 'center', 18);
+  text(COPY.endTitle, W / 2, 310 + r, '900 76px "Noto Sans KR"', INK, a);
+  rich(COPY.endLine, W / 2, 410 + r, 60, sm(t, T.E + 0.25, T.E + 0.7));
+  const b = sm(t, T.E + 0.5, T.E + 1.0);
+  card(70, 1580, 940, 230, 40, b);
+  text(COPY.endFormula, W / 2, 1680, '900 44px "Noto Sans KR"', INK, b);
+  text(COPY.endFlow, W / 2, 1755, '700 34px "Noto Sans KR"', TEAL, b, 'center', 2);
+}
+
+// ---------- frame ----------
+function renderFrame(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#F6FAFA'); bg.addColorStop(0.45, '#EAF2F2'); bg.addColorStop(1, '#DDE9E9');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  glow(540, 760, 700, '#FFFFFF', 0.8);
+
+  // 피부 단면 (아래에서 올라옴)
+  const skinIn = 1 - sm(t, 2.2, 3.3);
+  if (t > 2.0 && t < T.D + 0.4) {
+    ctx.save();
+    ctx.translate(0, skinIn * 1100);
+    drawSkin(t);
+    // 피부 아래쪽을 배경으로 자연스럽게
+    const fg = ctx.createLinearGradient(0, 1430, 0, 1560);
+    fg.addColorStop(0, 'rgba(221,233,233,0)'); fg.addColorStop(1, 'rgba(221,233,233,1)');
+    ctx.fillStyle = fg; ctx.fillRect(0, 1430, W, 130);
+    ctx.fillStyle = '#DDE9E9'; ctx.fillRect(0, 1559, W, 800);
+    ctx.restore();
+  }
+  // 상단 문구 영역 바탕
+  const tg = ctx.createLinearGradient(0, 0, 0, 640);
+  tg.addColorStop(0, 'rgba(246,250,250,0.92)'); tg.addColorStop(1, 'rgba(246,250,250,0)');
+  ctx.fillStyle = tg; ctx.fillRect(0, 0, W, 640);
+
+  drawTop(t);
+  drawBottom(t);
+  drawTargets(t);
+  drawProduct(t);
+  drawMist(t);
+  drawEnd(t);
+}
+window.renderFrame = renderFrame;
+window.DURATION = DURATION;
+// 웹폰트는 글자 묶음별로 나뉘어 있으므로 화면에 쓰는 모든 글자를 미리 받아 둔다
+const ALL_TEXT = JSON.stringify(COPY) + 'EPIDERMIS DERMIS PEPTIDE EGF aFGF IGF-1 표피 진피 프롤린 글리신 알지닌 타우린 +=→·, 0123456789';
+window.sceneReady = Promise.all([
+  document.fonts.ready,
+  ...[400, 500, 700, 900].map(w => document.fonts.load(`${w} 40px "Noto Sans KR"`, ALL_TEXT)),
+  new Promise(r => { if (photo.complete && photo.naturalWidth) r(); else { photo.onload = r; photo.onerror = r; } }),
+]).then(prepProduct);
+
+const params = new URLSearchParams(location.search);
+if (params.has('render')) {
+  document.body.classList.add('render');
+} else {
+  window.sceneReady.then(() => {
+    if (params.has('t')) { renderFrame(parseFloat(params.get('t'))); return; }
+    const start = performance.now();
+    const loop = now => { renderFrame(((now - start) / 1000) % DURATION); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  });
+}
+</script>
+</body>
+</html>
