@@ -1,6 +1,5 @@
-// 상담 신청서가 저장될 주소입니다.
-// apps-script/Code.gs 를 구글 스프레드시트에 배포한 뒤 받은 "웹 앱 URL"을 아래 따옴표 안에 붙여넣으세요.
-// 예: "https://script.google.com/macros/s/AKfy.../exec"
+// 상담 신청서를 받을 메일 주소입니다.
+// 처음 한 번 신청하면 이 주소로 FormSubmit 인증 메일이 옵니다. 메일 안의 "Activate Form" 버튼을 누르면 그다음 신청부터 메일로 받습니다.
 window.ANADO_CONFIG = {
-  SUBMIT_URL: "https://script.google.com/macros/s/AKfycbzeTvDQXkYBW50evxJxxhxTiw0zMGTr3_BH3YVgSMkA56bT5ZvpoyMznzFN1KqCBv7L3A/exec"
+  NOTIFY_EMAIL: "resteem@naver.com"
 };

@@ -220,11 +220,13 @@
   }
 
   var cfg = window.ANADO_CONFIG || {};
-  if (!cfg.SUBMIT_URL) {
-    var n = $('#formNotice');
-    n.hidden = false;
-    n.textContent = '[관리자 안내] 신청서 저장 주소가 아직 설정되지 않았습니다. js/config.js 의 SUBMIT_URL 을 설정해 주세요.';
+  var notice = $('#formNotice');
+  function showNotice(text) {
+    notice.textContent = text;
+    notice.hidden = !text;
+    if (text) notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
+  if (!cfg.NOTIFY_EMAIL) showNotice('[관리자 안내] 신청서를 받을 메일 주소가 설정되지 않았습니다. js/config.js 의 NOTIFY_EMAIL 을 설정해 주세요.');
 
   // Phone auto-format: 01012345678 -> 010-1234-5678
   var phone = $('#f-phone');
@@ -278,33 +280,41 @@
     if (!privacy && !firstBad) firstBad = $('#f-privacy');
     if (firstBad) { firstBad.focus(); return; }
 
-    var data = new URLSearchParams({
-      name: form.elements.name.value.trim(),
-      age: form.elements.age.value,
-      region: form.elements.region.value,
-      phone: form.elements.phone.value,
-      message: form.elements.message.value.trim(),
-      concerns: Array.prototype.filter.call(form.querySelectorAll('input[name="concerns"]'), function (c) { return c.checked; })
-        .map(function (c) { return c.value; }).join(', '),
-      skinType: skinResult.skinType,
-      concern: skinResult.concern,
-      recommended: skinResult.recommended,
-      answers: skinResult.answers,
-      privacy: 'Y',
-      marketing: $('#f-marketing').checked ? 'Y' : 'N',
-      website: form.elements.website.value,
-      utm_source: utm('utm_source'),
-      utm_campaign: utm('utm_campaign'),
-      page: location.href
-    });
+    var name = form.elements.name.value.trim();
+    var concerns = Array.prototype.filter.call(form.querySelectorAll('input[name="concerns"]'), function (c) { return c.checked; })
+      .map(function (c) { return c.value; }).join(', ');
+    // Keys become the row labels in the notification email.
+    var data = {
+      '이름': name,
+      '나이': form.elements.age.value,
+      '지역': form.elements.region.value,
+      '전화번호': form.elements.phone.value,
+      '피부 고민': concerns || '-',
+      '피부타입 테스트': skinResult.skinType + (skinResult.concern ? ' (' + skinResult.concern + ')' : ''),
+      '추천 제품': skinResult.recommended || '-',
+      '남기고 싶은 말': form.elements.message.value.trim() || '-',
+      '개인정보 동의': '동의',
+      '문자 수신 동의': $('#f-marketing').checked ? '동의' : '미동의',
+      '유입 경로': [utm('utm_source'), utm('utm_campaign')].filter(Boolean).join(' / ') || '-',
+      '테스트 응답': skinResult.answers || '-',
+      _subject: '[아나도 상담신청] ' + name + ' / ' + form.elements.region.value + ' / ' + form.elements.age.value + '세',
+      _template: 'table',
+      _captcha: 'false'
+    };
 
     var btn = $('#submitBtn');
+    var reset = function () {
+      submitting = false;
+      btn.disabled = false;
+      btn.textContent = '무료 상담 신청하기';
+    };
     submitting = true;
     btn.disabled = true;
     btn.textContent = '신청 중입니다…';
+    showNotice('');
 
     var done = function () {
-      $('#thanksName').textContent = form.elements.name.value.trim();
+      $('#thanksName').textContent = name;
       form.hidden = true;
       var t = $('#thanks');
       t.hidden = false;
@@ -312,20 +322,35 @@
       t.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
 
-    if (!cfg.SUBMIT_URL) {
-      console.warn('[ANADO] SUBMIT_URL 미설정 — 신청 내용이 저장되지 않았습니다.', Object.fromEntries(data));
+    // Bots fill the hidden field; pretend success without sending.
+    if (form.elements.website.value) { setTimeout(done, 400); return; }
+
+    if (!cfg.NOTIFY_EMAIL) {
+      console.warn('[ANADO] NOTIFY_EMAIL 미설정 — 신청 내용이 발송되지 않았습니다.', data);
       setTimeout(done, 400);
       return;
     }
 
-    // Google Apps Script web apps don't return CORS headers; no-cors sends the data without reading the reply.
-    fetch(cfg.SUBMIT_URL, { method: 'POST', mode: 'no-cors', body: data })
-      .then(done)
+    // FormSubmit (formsubmit.co) forwards the fields to the email address as a table.
+    fetch('https://formsubmit.co/ajax/' + cfg.NOTIFY_EMAIL.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(data)
+    })
+      .then(function (res) { return res.json().catch(function () { return {}; }); })
+      .then(function (json) {
+        if (String(json.success) === 'true') { done(); return; }
+        reset();
+        var msg = String(json.message || '');
+        if (/activat/i.test(msg)) {
+          showNotice('[관리자 안내] 메일 수신 인증이 필요합니다. ' + cfg.NOTIFY_EMAIL + ' 메일함(스팸함 포함)에 온 FormSubmit 인증 메일의 "Activate Form" 버튼을 누른 뒤 다시 신청해 주세요.');
+        } else {
+          showNotice('일시적인 오류로 신청이 접수되지 않았습니다. 잠시 후 다시 시도해 주세요.' + (msg ? ' (' + msg + ')' : ''));
+        }
+      })
       .catch(function () {
-        submitting = false;
-        btn.disabled = false;
-        btn.textContent = '무료 상담 신청하기';
-        alert('일시적인 오류로 신청이 접수되지 않았습니다. 잠시 후 다시 시도해 주세요.');
+        reset();
+        showNotice('인터넷 연결이 불안정해 신청이 접수되지 않았습니다. 잠시 후 다시 시도해 주세요.');
       });
   });
 })();
