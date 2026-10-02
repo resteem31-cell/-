@@ -1,11 +1,37 @@
-# Website builder workspace
+# ANADO 아나도 홈페이지
 
-This repository includes the [website-builder-setup](https://github.com/tenfoldmarc/website-builder-setup) skill by @tenfoldmarc, vendored at `.claude/skills/website-builder-setup/`.
+40~60대 여성 고객을 위한 아나도 제품 소개 + 피부타입 테스트 + 상담 신청(DB 수집) 홈페이지입니다.
+별도 빌드 없이 바로 열리는 정적 사이트입니다 (`index.html`).
 
-Open Claude Code in this repository and type `/website-builder-setup` to install the stack:
+## 구성
+| 파일 | 내용 |
+|---|---|
+| `index.html` | 홈페이지 본문 (브랜드, 4단계 루틴, 제품 4종, 피부타입 테스트, 상담 신청서) |
+| `css/style.css` | 디자인 (아이보리 · 골드 톤, 큰 글씨) |
+| `js/main.js` | 피부타입 테스트, 신청서 검사·전송 |
+| `js/config.js` | **신청서 저장 주소 설정** |
+| `apps-script/Code.gs` | 신청 내용을 구글 스프레드시트에 쌓는 스크립트 |
+| `assets/img/` | 제품 사진, 로고 |
 
-- **UI/UX Pro Max** (`uipro-cli`): design styles, color palettes and font pairings
-- **Framer Motion**: animations
-- **21st.dev Magic**: an MCP server for React components (needs a free API key from https://21st.dev/magic/console)
+## 상담 신청 DB 연결 (구글 스프레드시트)
+1. 구글 스프레드시트를 새로 만들고 [확장 프로그램] → [Apps Script] 를 엽니다.
+2. `apps-script/Code.gs` 내용을 붙여넣고 저장합니다.
+3. [배포] → [새 배포] → 웹 앱 / 실행 사용자: 나 / 액세스: 모든 사용자 → 배포.
+4. 받은 웹 앱 URL을 `js/config.js` 의 `SUBMIT_URL` 에 붙여넣습니다.
 
-Requires Node.js (LTS).
+신청이 들어오면 `상담신청` 시트에 접수일시, 이름, 나이, 지역, 전화번호, 피부타입, 추천제품, 피부고민,
+테스트 응답, 남기고 싶은 말, 동의 여부, 유입경로(utm)가 한 줄씩 저장됩니다.
+광고 링크에 `?utm_source=instagram&utm_campaign=10월이벤트` 처럼 붙이면 어디서 들어온 고객인지 함께 기록됩니다.
+
+## 공개 전 확인할 것
+- `index.html` 하단 푸터의 `[상호명]`, `[대표자명]`, `[사업자등록번호]`, `[주소]`, `[고객센터]` 를 실제 정보로 바꿔 주세요.
+- 개인정보 수집·이용 동의 문구(보유 기간 등)가 실제 운영 방침과 맞는지 확인해 주세요.
+- 제품 설명 문구는 상세페이지를 바탕으로 작성했습니다. 화장품 표시·광고 기준에 맞는지 최종 확인해 주세요.
+
+## 사이트 공개 방법
+GitHub 저장소 [Settings] → [Pages] 에서 이 브랜치의 루트(`/`)를 선택하면 무료로 공개됩니다.
+Netlify 등에 폴더를 그대로 올려도 됩니다.
+
+## Claude Code 도구
+`.claude/skills/` 에 website-builder-setup, ui-ux-pro-max 스킬이 들어 있고, `.mcp.json` 에 21st.dev Magic 설정이 있습니다
+(환경 변수 `TWENTY_FIRST_API_KEY` 필요).
